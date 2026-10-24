@@ -18,8 +18,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", profileRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/users", followRoutes);
-
-
 app.get("/", (req, res) => {
   res.json({
     message: "Social Community API is running 🚀",

@@ -23,7 +23,6 @@ const postSchema = new mongoose.Schema(
       maxlength: 500,
       default: "",
     },
-    
     likes: [
     {
     type: mongoose.Schema.Types.ObjectId,

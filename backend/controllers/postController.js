@@ -243,8 +243,6 @@ const addComment = async (req, res) => {
     });
 
     await post.save();
-
-   
     await post.populate(
       "comments.user",
       "username displayName profilePicture"
