@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 
 const getMyProfile = async (req, res) => {
@@ -163,4 +164,101 @@ const updateMyProfile = async (req, res) => {
 };
 
 
-module.exports = { getMyProfile, updateMyProfile};
+const searchUsers = async (req, res) => {
+  try {
+    const query = req.query.q;
+
+    if (typeof query !== "string" || query.trim().length < 2) {
+      return res.status(400).json({
+        message: "Search query must contain at least 2 characters.",
+      });
+    }
+
+    const trimmedQuery = query.trim();
+
+    if (trimmedQuery.length > 30) {
+      return res.status(400).json({
+        message: "Search query cannot exceed 30 characters.",
+      });
+    }
+
+    const escapedQuery = trimmedQuery.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
+    const users = await User.find({
+      _id: { $ne: req.userId },
+      $or: [
+        { username: { $regex: escapedQuery, $options: "i" } },
+        { displayName: { $regex: escapedQuery, $options: "i" } },
+      ],
+    })
+      .select("username displayName profilePicture")
+      .limit(20);
+
+    return res.status(200).json({
+      count: users.length,
+      users: users.map((user) => ({
+        id: user._id,
+        username: user.username,
+        displayName: user.displayName,
+        profilePicture: user.profilePicture,
+      })),
+    });
+  } catch (error) {
+    console.error("Search users error:", error.message);
+
+    return res.status(500).json({
+      message: "An unexpected error occurred while searching users.",
+    });
+  }
+};
+
+const getUserProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        message: "Invalid user ID.",
+      });
+    }
+
+    const user = await User.findById(id).select(
+      "username displayName bio profilePicture followers following createdAt"
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
+      });
+    }
+
+    const isFollowing = user.followers.some(
+      (followerId) => followerId.toString() === req.userId
+    );
+
+    return res.status(200).json({
+      user: {
+        id: user._id,
+        username: user.username,
+        displayName: user.displayName,
+        bio: user.bio,
+        profilePicture: user.profilePicture,
+        followersCount: user.followers.length,
+        followingCount: user.following.length,
+        isFollowing,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Get user profile error:", error.message);
+
+    return res.status(500).json({
+      message: "An unexpected error occurred while fetching the user profile.",
+    });
+  }
+};
+
+module.exports = { getMyProfile, updateMyProfile , searchUsers , getUserProfile};
