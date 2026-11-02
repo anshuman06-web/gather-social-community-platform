@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 
 const toggleFollow = async (req, res) => {
   try {
@@ -43,6 +44,14 @@ const toggleFollow = async (req, res) => {
       currentUser.save(),
       targetUser.save(),
     ]);
+
+    if (!alreadyFollowing) {
+    await Notification.create({
+    recipient: targetUserId,
+    actor: currentUserId,
+    type: "follow",
+    });
+    }
 
     return res.status(200).json({
       message: alreadyFollowing

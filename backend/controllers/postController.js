@@ -1,5 +1,7 @@
+
 const mongoose = require("mongoose");
 const Post = require("../models/Post");
+const Notification = require("../models/Notification");
 
 const createPost = async (req, res) => {
   try {
@@ -142,8 +144,9 @@ const getFeed = async (req, res) => {
         caption: post.caption,
         likesCount: post.likes.length,
         likedByMe: post.likes.some(
-       (likedUserId) => likedUserId.toString() === req.userId
-       ),
+          (likedUserId) =>
+            likedUserId.toString() === req.userId
+        ),
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
       })),
@@ -187,6 +190,18 @@ const toggleLike = async (req, res) => {
     }
 
     await post.save();
+
+    if (
+      !alreadyLiked &&
+      post.createdBy.toString() !== userId
+    ) {
+      await Notification.create({
+        recipient: post.createdBy,
+        actor: userId,
+        type: "like",
+        post: post._id,
+      });
+    }
 
     return res.status(200).json({
       message: alreadyLiked
@@ -243,13 +258,22 @@ const addComment = async (req, res) => {
     });
 
     await post.save();
+
+    if (post.createdBy.toString() !== req.userId) {
+      await Notification.create({
+        recipient: post.createdBy,
+        actor: req.userId,
+        type: "comment",
+        post: post._id,
+      });
+    }
+
     await post.populate(
       "comments.user",
       "username displayName profilePicture"
     );
 
     const comment = post.comments[post.comments.length - 1];
-
 
     return res.status(201).json({
       message: "Comment added successfully.",
@@ -310,5 +334,52 @@ const getComments = async (req, res) => {
   }
 };
 
+// Delete a post (only its owner can delete it)
+const deletePost = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-module.exports = {createPost, getPostById , getFeed , toggleLike , addComment , getComments};
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        message: "Invalid post ID.",
+      });
+    }
+
+    const post = await Post.findById(id);
+
+    if (!post) {
+      return res.status(404).json({
+        message: "Post not found.",
+      });
+    }
+
+    if (post.createdBy.toString() !== req.userId) {
+      return res.status(403).json({
+        message: "You are not authorized to delete this post.",
+      });
+    }
+
+    await post.deleteOne();
+
+    return res.status(200).json({
+      message: "Post deleted successfully.",
+      postId: id,
+    });
+  } catch (error) {
+    console.error("Delete post error:", error.message);
+
+    return res.status(500).json({
+      message: "An unexpected error occurred while deleting the post.",
+    });
+  }
+};
+
+module.exports = {
+  createPost,
+  getPostById,
+  getFeed,
+  toggleLike,
+  addComment,
+  getComments,
+  deletePost,
+};
